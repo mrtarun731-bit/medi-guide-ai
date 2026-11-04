@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MediGuide AI – Advanced Medical Analysis</title>
+<!-- Libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+<style>
+    :root {
+        --bg: #f8fafc; --text: #1e293b; --muted: #64748b;
+        --acc: #0ea5e9; --acc2: #2563eb; --danger: #ef4444; --good: #10b981;
+        --glass: rgba(255, 255, 255, 0.85); --shadow: 0 20px 40px -10px rgba(0,0,0,0.1);
+    }
+    
+    * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
+    body { margin: 0; background: var(--bg); color: var(--text); overflow-x: hidden; }
+    
+    /* Navigation */
+    nav { background: #fff; padding: 15px 40px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 15px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 100; }
+    .logo { font-size: 22px; font-weight: 700; color: var(--acc2); display: flex; align-items: center; gap: 10px; cursor: pointer; }
+    .logo i { color: var(--acc); }
+    .nav-links { display: flex; gap: 30px; }
+    .nav-links a { text-decoration: none; color: var(--muted); font-weight: 600; font-size: 15px; transition: 0.3s; cursor: pointer; padding-bottom: 5px; border-bottom: 2px solid transparent; }
+    .nav-links a:hover, .nav-links a.active { color: var(--acc2); border-bottom-color: var(--acc2); }
+
+    /* Page Sections */
+    .page-section { display: none; animation: fadeIn 0.4s ease; }
+    .page-section.active { display: block; }
+
+    /* Hero Section */
+    .hero {
+        background: linear-gradient(135deg, rgba(14, 165, 233, 0.9), rgba(37, 99, 235, 0.9)), 
+                    url('https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?q=80&w=2070&auto=format&fit=crop');
+        background-size: cover; background-position: center; padding: 80px 20px;
+        color: white; text-align: center; position: relative;
+    }
+    .hero h1 { font-size: 42px; margin: 0 0 15px 0; font-weight: 700; letter-spacing: -1px; }
+    .hero p { font-size: 18px; margin: 0 0 40px 0; opacity: 0.9; font-weight: 300; max-width: 600px; margin-left: auto; margin-right: auto; }
+    
+    /* Upload Dropzone */
+    #dz {
+        background: var(--glass); border: 2px dashed rgba(255,255,255,0.8);
+        border-radius: 20px; padding: 40px; max-width: 600px; margin: 0 auto;
+        cursor: pointer; color: var(--text); transition: all 0.3s;
+        box-shadow: var(--shadow); backdrop-filter: blur(10px);
+    }
+    #dz:hover { transform: translateY(-5px); border-color: var(--acc); background: #fff; }
+    #dz i { font-size: 40px; color: var(--acc2); margin-bottom: 15px; }
+    #dz b { font-size: 20px; display: block; margin-bottom: 8px; }
+    
+    .bar { height: 8px; background: #e2e8f0; border-radius: 10px; overflow: hidden; margin-top: 20px; display: none; max-width: 600px; margin-left: auto; margin-right: auto; }
+    .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--acc), var(--acc2)); transition: .3s; }
+    #status { text-align: center; font-weight: 600; margin-top: 15px; font-size: 15px; }
+    
+    .btn-sample { background: rgba(255,255,255,0.2); color: white; border: 1px solid white; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; margin-top: 15px; transition: 0.3s; }
+    .btn-sample:hover { background: white; color: var(--acc2); }
+
+    /* Dashboard Container */
+    #app { display: none; max-width: 1100px; margin: -30px auto 60px auto; padding: 0 20px; position: relative; z-index: 10; }
+    .dashboard-card { background: #fff; border-radius: 24px; box-shadow: var(--shadow); padding: 30px; margin-bottom: 30px; }
+    
+    /* Tabs */
+    .tabs { display: flex; gap: 15px; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px; margin-bottom: 30px; overflow-x: auto; }
+    .tab-btn { background: #f8fafc; color: var(--muted); border: none; padding: 12px 24px; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; transition: 0.3s; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+    .tab-btn:hover { background: #e2e8f0; }
+    .tab-btn.active { background: var(--acc2); color: white; box-shadow: 0 4px 12px rgba(37,99,235,0.3); }
+    
+    .tab-content { display: none; animation: fadeIn 0.5s ease; }
+    .tab-content.active { display: block; }
+
+    /* Data Display Cards */
+    .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+    .data-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; transition: 0.3s; position: relative; overflow: hidden; }
+    .data-card:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.05); }
+    .data-card.abnormal { border-left: 6px solid var(--danger); background: #fef2f2; }
+    .data-card.normal { border-left: 6px solid var(--good); }
+    
+    .data-title { font-size: 14px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+    .data-value { font-size: 28px; font-weight: 700; color: var(--text); display: flex; align-items: baseline; gap: 10px; }
+    .data-badge { font-size: 12px; padding: 4px 10px; border-radius: 20px; font-weight: 700; background: #fee2e2; color: var(--danger); text-transform: uppercase; }
+    .data-card.normal .data-badge { background: #d1fae5; color: var(--good); }
+
+    /* Recommendations */
+    .rec-item { display: flex; gap: 15px; padding: 15px; border-bottom: 1px solid #f1f5f9; }
+    .rec-item i { font-size: 24px; color: var(--acc); margin-top: 3px; }
+    .rec-text { font-size: 16px; line-height: 1.6; }
+
+    /* Chat Assistant */
+    .chat-container { border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; background: #fff; }
+    .chat-box { height: 350px; padding: 20px; overflow-y: auto; background: #f8fafc; display: flex; flex-direction: column; gap: 15px; }
+    .chat-msg { max-width: 80%; padding: 12px 18px; border-radius: 12px; font-size: 15px; line-height: 1.5; }
+    .chat-msg.bot { background: #e0f2fe; color: var(--text); align-self: flex-start; border-bottom-left-radius: 0; }
+    .chat-msg.user { background: var(--acc2); color: white; align-self: flex-end; border-bottom-right-radius: 0; }
+    .chat-input-area { display: flex; padding: 15px; background: #fff; border-top: 1px solid #e2e8f0; }
+    .chat-input-area input { flex: 1; padding: 12px 15px; border: 1px solid #e2e8f0; border-radius: 8px; outline: none; font-size: 15px; }
+    .chat-input-area button { background: var(--acc2); color: white; border: none; padding: 0 25px; margin-left: 10px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: 0.2s; }
+    .chat-input-area button:hover { opacity: 0.9; }
+
+    /* Footer */
+    footer { text-align: center; padding: 30px; color: var(--muted); font-size: 14px; border-top: 1px solid #e2e8f0; background: #fff; margin-top: 50px; }
+    
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+
+<nav>
+    <div class="logo" onclick="switchPage('dashboard')"><i class="fa-solid fa-notes-medical"></i> MediGuide AI</div>
+    <div class="nav-links">
+        <a id="nav-dashboard" class="active" onclick="switchPage('dashboard')">Dashboard</a>
+        <a id="nav-help" onclick="switchPage('help')">Help & AI Assistant</a>
+    </div>
+</nav>
+
+<!-- PAGE 1: DASHBOARD -->
+<div id="page-dashboard" class="page-section active">
+    <header class="hero">
+        <h1>Decode Your Medical Reports</h1>
+        <p>Upload your PDF, Image, or TXT lab results. Our AI extracts exact values, highlights abnormalities, and generates clinical insights securely.</p>
+        
+        <div id="dz" onclick="document.getElementById('fi').click()">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+            <b>Drag & Drop Report Here</b>
+            <span>Supports PDF, JPG, PNG, TXT</span>
+        </div>
+        <input type="file" id="fi" accept=".pdf,image/*,.txt" hidden onchange="processFile(this.files[0])">
+        
+        <div class="bar" id="bar"><i id="bi"></i></div>
+        <div id="status" style="color: var(--acc2); margin-top: 10px;">Awaiting document...</div>
+        
+        <button class="btn-sample" onclick="loadSample()"><i class="fa-solid fa-bolt"></i> Try Sample Report (Instant)</button>
+    </header>
+
+    <main id="app">
+        <div class="dashboard-card">
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('risk')"><i class="fa-solid fa-triangle-exclamation"></i> Risk Analysis</button>
+                <button class="tab-btn" onclick="switchTab('summary')"><i class="fa-solid fa-vial"></i> All Lab Findings</button>
+                <button class="tab-btn" onclick="switchTab('recs')"><i class="fa-solid fa-leaf"></i> Recommendations</button>
+            </div>
+            <div id="tab-risk" class="tab-content active">
+                <h2 style="margin-top:0; color:var(--text);">Critical Abnormalities</h2>
+                <p style="color:var(--muted); margin-bottom:20px;">The AI has prioritized the most important health risks found in your report.</p>
+                <div class="grid-container" id="risk-text"></div>
+            </div>
+            <div id="tab-summary" class="tab-content">
+                <h2 style="margin-top:0; color:var(--text);">Extracted Lab Results</h2>
+                <p style="color:var(--muted); margin-bottom:20px;">Complete list of mapped medical values.</p>
+                <div class="grid-container" id="summary-text"></div>
+            </div>
+            <div id="tab-recs" class="tab-content">
+                <h2 style="margin-top:0; color:var(--text);">AI Health Recommendations</h2>
+                <p style="color:var(--muted); margin-bottom:20px;">Actionable lifestyle advice based on your findings.</p>
+                <div id="recs-text" style="background: #f8fafc; border-radius: 16px; padding: 10px;"></div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- PAGE 2: HELP & AI ASSISTANT -->
+<div id="page-help" class="page-section">
+    <div style="max-width: 900px; margin: 40px auto; padding: 0 20px;">
+        <h1 style="color: var(--acc2); margin-bottom: 10px;"><i class="fa-solid fa-robot"></i> AI Medical Assistant</h1>
+        <p style="color: var(--muted); margin-bottom: 30px;">Ask me to explain any medical term (e.g., "What is TSH?", "Explain LDL").</p>
+        
+        <div class="chat-container">
+            <div class="chat-box" id="chat-box">
+                <div class="chat-msg bot">Hello! I am your MediGuide AI. Ask me to explain a medical term like <b>TSH</b>, <b>Cholesterol</b>, or <b>Hemoglobin</b>.</div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="chat-input" placeholder="Type your question here..." onkeypress="handleChatEnter(event)">
+                <button onclick="sendChatMessage()">Send</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer>
+    <p><strong>MediGuide AI</strong> | Educational Project for DS408 Generative AI</p>
+    <p style="font-size:12px;">Disclaimer: This tool is for educational purposes. Always consult a licensed physician.</p>
+</footer>
+
+<script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+    let extractedText = "";
+    let structuredFindings = []; 
+
+    // --- NAVIGATION LOGIC ---
+    function switchPage(pageId) {
+        document.querySelectorAll('.page-section').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
+        
+        document.getElementById('page-' + pageId).classList.add('active');
+        document.getElementById('nav-' + pageId).classList.add('active');
+    }
+
+    // --- DASHBOARD LOGIC ---
+    function switchTab(id) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        event.currentTarget.classList.add('active');
+        document.getElementById('tab-' + id).classList.add('active');
+    }
+
+    // --- SAMPLE DATA FOR INSTANT DEMO ---
+    function loadSample() {
+        extractedText = `Patient Name: John Doe. 
+        Total Cholesterol is 240 mg/dL (High). 
+        LDL Cholesterol is 160 mg/dL (High). 
+        HDL Cholesterol is 35 mg/dL (Low). 
+        Triglycerides are 200 mg/dL (Borderline High).
+        Fasting Blood Sugar is 110 mg/dL (Prediabetes). 
+        Vitamin D is 18 ng/mL (Deficient). 
+        TSH is 4.5 uIU/mL (Normal).
+        Hemoglobin is 14.5 g/dL (Normal).`;
+
+        document.getElementById("status").innerHTML = "<i class='fa-solid fa-circle-check' style='color:var(--good)'></i> Sample Report Analyzed!";
+        document.getElementById("app").style.display = "block";
+        document.getElementById("app").scrollIntoView({ behavior: 'smooth' });
+        
+        extractMedicalData();
+        renderRisk();
+        renderSummary();
+        renderRecs();
+    }
+
+    async function processFile(file) {
+        if (!file) return;
+        const bar = document.getElementById("bar");
+        const bi = document.getElementById("bi");
+        const status = document.getElementById("status");
+        
+        bar.style.display = "block";
+        bi.style.width = "10%";
+        status.innerHTML = "<i class='fa-solid fa-spinner fa-spin'></i> Reading document...";
+        document.getElementById("app").style.display = "none";
+
+        try {
+            if (file.type === "application/pdf") {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+                let text = "";
+                
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const content = await page.getTextContent();
+                    let pageText = content.items.map(item => item.str).join(" ");
+                    text += pageText + "\n";
+                }
+
+                if (text.trim().length < 20) {
+                    status.innerHTML = "<i class='fa-solid fa-eye fa-bounce'></i> Scanned PDF detected. Running OCR (20-30s)...";
+                    text = "";
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const viewport = page.getViewport({scale: 2.0});
+                        const canvas = document.createElement('canvas');
+                        const context = canvas.getContext('2d');
+                        canvas.height = viewport.height;
+                        canvas.width = viewport.width;
+                        await page.render({canvasContext: context, viewport: viewport}).promise;
+                        
+                        const ret = await Tesseract.recognize(canvas, 'eng', {
+                            logger: m => {
+                                if(m.status === 'recognizing text') bi.style.width = (m.progress * 80 + 10) + "%";
+                            }
+                        });
+                        text += ret.data.text + "\n";
+                    }
+                }
+                extractedText = text;
+            } else if (file.type.startsWith("image/")) {
+                status.innerHTML = "<i class='fa-solid fa-eye fa-bounce'></i> Running OCR on image (10-20s)...";
+                const { data: { text } } = await Tesseract.recognize(
+                    file,
+                    'eng',
+                    {
+                        logger: m => {
+                            if (m.status === 'recognizing text') bi.style.width = (m.progress * 80 + 10) + "%";
+                        }
+                    }
+                );
+                extractedText = text;
+            } else if (file.type === "text/plain" || file.name.endsWith(".txt")) {
+                status.innerHTML = "<i class='fa-solid fa-file-lines fa-bounce'></i> Reading Text File...";
+                extractedText = await file.text();
+                bi.style.width = "100%";
+            } else {
+                throw new Error("Unsupported file type. Please upload PDF, Image, or TXT.");
+            }
+
+            if (extractedText.trim().length < 20) throw new Error("Could not read text. File might be empty or blurry.");
+
+            bi.style.width = "100%";
+            status.innerHTML = "<i class='fa-solid fa-circle-check' style='color:var(--good)'></i> Analysis Complete!";
+            setTimeout(() => { bar.style.display = "none"; }, 800);
+            
+            document.getElementById("app").style.display = "block";
+            document.getElementById("app").scrollIntoView({ behavior: 'smooth' });
+            
+            extractMedicalData();
+            renderRisk();
+            renderSummary();
+            renderRecs();
+
+        } catch (error) {
+            console.error(error);
+            status.innerHTML = "❌ Error: " + error.message;
+            status.style.color = "var(--danger)";
+            bar.style.display = "none";
+        }
+    }
+
+    // --- FIXED, ULTRA-ACCURATE EXTRACTION ENGINE ---
+    function extractMedicalData() {
+        structuredFindings = [];
+        let cleanText = extractedText.replace(/[ \t]+/g, ' ');
+
+        // The new Regex: 
+        // 1. Finds the test name.
+        // 2. Skips up to 25 characters that are NOT digits or hyphens (this skips words like "is", ":", or spaces).
+        // 3. Captures the floating-point number.
+        const testPatterns = [
+            { name: "TSH", regex: /(TSH|Thyroid Stimulating Hormone)[^\d-]{0,25}?(\d+(?:\.\d+)?)/i, min: 0.4, max: 4.5 },
+            { name: "T3", regex: /(T3|Triiodothyronine)[^\d-]{0,25}?(\d+(?:\.\d+)?)/i, min: 80, max: 200 },
+            { name: "T4", regex: /(T4|Thyroxine)[^\d-]{0,25}?(\d+(?:\.\d+)?)/i, min: 5.0, max: 12.0 },
+            { name: "Total Cholesterol", regex: /(Total Cholesterol|Cholesterol Total|Cholesterol)[^\d-]{0,25}?(\d+(?:\.\d+)?)/i, min: 100, max: 200 },
+            { name: "LDL Cholesterol", regex: /(LDL|Low Density)[^\d-]{0,25}?(\d+(?:\.\d+)?)/i, min: 0, max: 100 },
+            { name: "HDL Cholesterol", regex: /(HDL|High Density)[^\d-]{0,25}?(\d+(?:\.\d+)?)/i, min: 40, max: 100 },
+            { name: "Triglycerides", regex: /(Triglycerides|TG)[^\d-]{0,25}?(\d+(?:\.\d+)?)/i, min: 0, max: 150 },
+            { name: "Blood Sugar", regex: /(Glucose|Blood Sugar|FBS|Fasting)[^\d-]{0,25}?(\d+(?:\.\d+)?)/i, min: 70, max: 100 },
+            { name: "HbA1c", regex: /(HbA1c|Glycated)[^\d-]{0,25}?(\d+(?:\.\d+)?)/i, min: 4.0, max: 5.7 },
+            { name: "Hemoglobin", regex: /(Hemoglobin|Hb)[^\d-]{0,25}?(\d+(?:\.\d+)?)/i, min: 13.5, max: 17.5 },
+            { name: "Vitamin D", regex: /(Vitamin D|25-OH)[^\d-]{0,25}?(\d+(?:\.\d+)?)/i, min: 30, max: 100 },
+            { name: "Creatinine", regex: /(Creatinine)[^\d-]{0,25}?(\d+(?:\.\d+)?)/i, min: 0.6, max: 1.3 }
+        ];
+
+        testPatterns.forEach(test => {
+            const match = cleanText.match(test.regex);
+            if (match) {
+                const val = parseFloat(match[2]);
+                
+                // Check both text clues and mathematical thresholds!
+                const startIdx = Math.max(0, match.index - 10);
+                const endIdx = Math.min(cleanText.length, match.index + match[0].length + 15);
+                const context = cleanText.substring(startIdx, endIdx).toLowerCase();
+                
+                const hasTextClue = /high|low|abnormal|deficient|elevated|borderline|positive|prediabetes/i.test(context);
+                const isMathAbnormal = (val < test.min || val > test.max);
+
+                const isAbnormal = hasTextClue || isMathAbnormal;
+                
+                structuredFindings.push({ name: test.name, value: val, isAbnormal: isAbnormal });
+            }
+        });
+    }
+
+    function renderRisk() {
+        const out = document.getElementById("risk-text");
+        const abnormals = structuredFindings.filter(f => f.isAbnormal);
+        if (abnormals.length === 0) {
+            out.innerHTML = `<div class="data-card normal"><div class="data-title">All Clear</div><div class="data-value" style="font-size:20px;">No critical abnormalities detected</div></div>`;
+            return;
+        }
+        out.innerHTML = abnormals.map(f => `
+            <div class="data-card abnormal">
+                <div class="data-title">${f.name}</div>
+                <div class="data-value">${f.value} <span class="data-badge">High Risk</span></div>
+            </div>`).join('');
+    }
+
+    function renderSummary() {
+        const out = document.getElementById("summary-text");
+        if (structuredFindings.length === 0) {
+            out.innerHTML = `<p>No standard lab tests detected in this document.</p>`;
+            return;
+        }
+        out.innerHTML = structuredFindings.map(f => `
+            <div class="data-card ${f.isAbnormal ? 'abnormal' : 'normal'}">
+                <div class="data-title">${f.name}</div>
+                <div class="data-value">${f.value} <span class="data-badge">${f.isAbnormal ? 'Abnormal' : 'Normal'}</span></div>
+            </div>`).join('');
+    }
+
+    function renderRecs() {
+        const out = document.getElementById("recs-text");
+        const text = extractedText.toLowerCase();
+        let recs = [];
+
+        if (text.includes("cholesterol") || text.includes("ldl")) {
+            recs.push({ icon: "fa-carrot", text: "<b>Diet:</b> Reduce saturated fats and trans fats. Increase fiber intake (oats, beans, fruits)." });
+        }
+        if (text.includes("sugar") || text.includes("glucose") || text.includes("hba1c")) {
+            recs.push({ icon: "fa-candy-cane", text: "<b>Blood Sugar:</b> Monitor carbohydrate intake. Avoid sugary drinks and refined carbs." });
+        }
+        if (text.includes("vitamin d")) {
+            recs.push({ icon: "fa-sun", text: "<b>Vitamins:</b> Consider Vitamin D3 supplementation and get safe sun exposure." });
+        }
+        if (text.includes("tsh") || text.includes("thyroid")) {
+            recs.push({ icon: "fa-shield-virus", text: "<b>Thyroid:</b> Ensure adequate iodine and selenium intake. Consult an endocrinologist." });
+        }
+
+        if (recs.length === 0) recs.push({ icon: "fa-heart-pulse", text: "Maintain a balanced diet, stay hydrated, and continue regular check-ups." });
+        
+        out.innerHTML = recs.map(r => `<div class="rec-item"><i class="fa-solid ${r.icon}"></i><div class="rec-text">${r.text}</div></div>`).join('') + 
+            `<div style="padding:20px; text-align:center; color:var(--danger); font-size:13px; margin-top:20px;"><i class="fa-solid fa-circle-exclamation"></i> Disclaimer: This AI analysis is for educational purposes. Always consult a licensed physician.</div>`;
+    }
+
+    // --- HELP AI CHATBOT ---
+    const medicalDictionary = {
+        "tsh": "TSH (Thyroid Stimulating Hormone) is a pituitary hormone that stimulates the thyroid gland to produce thyroxine (T4) and triiodothyronine (T3). High TSH usually means an underactive thyroid (Hypothyroidism), while low TSH means an overactive thyroid (Hyperthyroidism).",
+        "cholesterol": "Cholesterol is a waxy substance found in your blood. High levels of LDL (bad) cholesterol can build up in your arteries, increasing the risk of heart disease. HDL (good) cholesterol helps remove LDL.",
+        "ldl": "LDL stands for Low-Density Lipoprotein, often called 'bad cholesterol'. High levels can lead to plaque buildup in arteries.",
+        "hdl": "HDL stands for High-Density Lipoprotein, the 'good cholesterol'. It helps carry LDL away from the arteries to the liver.",
+        "hemoglobin": "Hemoglobin (Hb or Hgb) is a protein in red blood cells that carries oxygen throughout your body. Low levels indicate anemia.",
+        "hba1c": "HbA1c measures your average blood sugar levels over the past 3 months. It is used to diagnose prediabetes and diabetes.",
+        "vitamin d": "Vitamin D helps regulate calcium and phosphate in the body. A deficiency can lead to bone pain, muscle weakness, and fatigue.",
+        "creatinine": "Creatinine is a waste product from normal muscle breakdown. The kidneys filter it out. High levels in the blood can indicate kidney disease."
+    };
+
+    function handleChatEnter(e) {
+        if (e.key === "Enter") sendChatMessage();
+    }
+
+    function sendChatMessage() {
+        const input = document.getElementById("chat-input");
+        const chatBox = document.getElementById("chat-box");
+        const msg = input.value.trim().toLowerCase();
+
+        if (!msg) return;
+
+        chatBox.innerHTML += `<div class="chat-msg user">${input.value}</div>`;
+        input.value = "";
+
+        let response = "I'm sorry, I don't have that specific term in my database. Try asking about TSH, Cholesterol, LDL, Hemoglobin, HbA1c, Vitamin D, or Creatinine.";
+        
+        for (const key in medicalDictionary) {
+            if (msg.includes(key)) {
+                response = medicalDictionary[key];
+                break;
+            }
+        }
+
+        setTimeout(() => {
+            chatBox.innerHTML += `<div class="chat-msg bot">${response}</div>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }, 500);
+
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+</script>
+
+</body>
+</html>
